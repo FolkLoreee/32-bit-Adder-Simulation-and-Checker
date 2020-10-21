@@ -1,0 +1,62 @@
+.include "./stdcell.jsim"
+
+.subckt FA a b ci s g p
+* FA subckt is the individual full adder
+
+* tried to optimize xor by cascading nands, but this xor2 is already faster
+Xxor2_1 a b q xor2
+Xxor2_2 ci q s xor2
+
+* To calculate P and G
+Xinvgenerator a b notg nand2
+Xgenerator notg g inverter
+Xnor_a_b a b nor_a_b nor2
+Xpropagator nor_a_b p inverter
+.ends
+
+.subckt GPC cin G_ih P_ih G_il P_il c_high c_low G_out P_out
+*GP/C Unit duplicated in every level below the FA
+* Idea is to avoid any ANDs & ORs by using NANDs and NORs and inverting the output
+.connect cin c_low
+XinvPih P_ih notP_ih inverter
+XinvGil G_il notG_il inverter
+Xpihandgil notP_ih notG_il pihAndgil nor2
+
+XinvPihandGil pihAndgil notpihAndgil inverter
+XinvGih G_ih notG_ih inverter
+XG_out notG_ih notpihAndgil G_out nand2
+
+XinvPil P_il notP_il inverter
+XP_out notP_il notP_ih P_out nor2
+
+Xinvcin cin notcin inverter
+Xnotc_and_pil P_il cin notcin_and_pil nand2
+XC_out notG_il notcin_and_pil c_high nand2
+.ends
+
+.subckt c16calculator c_15 p_input g_input c_16
+* Calculates the carry out of the 16th bit to pass in to the higher bit full adders
+* This is to optimize having 32 consecutive full adders, and instead use 3 16-bit FAs with a mux (carry select adder architecture) 
+Xinvgin g_input notg_input inverter
+Xc14_and_pin p_input c_15 notc15_and_pin nand2
+Xc15 notg_input notc15_and_pin c_16 nand2
+.ends
+
+.subckt bigV MSB_XA MSB_XB MSB_Sum isOverflow
+* Checks whether the number exceeds 32 bits
+Xinvert_sum MSB_Sum notMSB_Sum inverter
+Xinvert_XA MSB_XA notMSB_XA inverter
+Xinvert_XB MSB_XB notMSB_XB inverter
+Xand3_1 MSB_XA MSB_XB notMSB_Sum output_1 and3 
+Xand3_2 notMSB_XA notMSB_XB MSB_Sum output_2 and3
+Xnotoutput_1 output_1 notoutput_1 inverter
+Xnotoutput_2 output_2 notoutput_2 inverter
+Xor2 notoutput_1 notoutput_2 isOverflow nand2
+.ends 
+
+.subckt bigZero sum[31:0] isZero
+* Checks whether the sum is 0
+Xnor_level1 sum[7:0] sum[15:8] sum[23:16] sum[31:24] out1_[7:0] nor4
+Xand_level1 out1_[1:0] out1_[3:2] out1_[5:4] out1_[7:6] out2_[1:0] nand4
+Xand_level2 out2_[1] out2_[0] isZero nor2
+.ends

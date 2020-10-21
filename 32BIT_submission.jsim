@@ -1,0 +1,54 @@
+.include "./components.jsim"
+.include "./nominal.jsim"
+.include "./2dcheckoff_3ns.jsim"
+
+.subckt low_adder16 op0 a[15:0] b[15:0] s_invoke[15:0] c_16
+* the first 16 bits of Full Adders, the output c16 will be used as the selector in the mux to determine whether
+* there is a carry in to the 17th full adder
+.connect op0 c0
+Xlevel0 a[15:0] b[15:0] c[15:0] s_invoke[15:0] g[15:0] p[15:0] FA
+Xlevel1 c[14:0:2] g[15:1:2] p[15:1:2] g[14:0:2] p[14:0:2] c[15:1:2] c[14:0:2] g_level1[7:0] p_level1[7:0] GPC
+Xlevel2 c[12:0:4] g_level1[7:1:2] p_level1[7:1:2] g_level1[6:0:2] p_level1[6:0:2] c[14:2:4] c[12:0:4] g_level2[3:0] p_level2[3:0] GPC
+Xlevel3 c[8:0:8] g_level2[3:1:2] p_level2[3:1:2] g_level2[2:0:2] p_level2[2:0:2] c[12:4:8] c[8:0:8] g_level3[1:0] p_level3[1:0] GPC
+Xlevel4 c0 g_level3[1] p_level3[1] g_level3[0] p_level3[0] c8 c0 g_level4[0] p_level4[0] GPC
+Xc16calculator c15 p15 g15 c_16 c16calculator
+.ends
+
+
+.subckt high_adder16_noc a[31:16] b[31:16] s_invoke[31:16]
+* the higher 16 bits for the case of no carry out of the 16th bit (of the lower adder)
+Xlevel0_nc a[31:16] b[31:16] c[31:16] s_invoke[31:16] g[31:16] p[31:16] FA
+Xlevel1_nc c[30:16:2] g[31:17:2] p[31:17:2] g[30:16:2] p[30:16:2] c[31:17:2] c[30:16:2] g_level1[15:8] p_level1[15:8] GPC
+Xlevel2_nc c[28:16:4] g_level1[15:9:2] p_level1[15:9:2] g_level1[14:8:2] p_level1[14:8:2] c[30:18:4] c[28:16:4] g_level2[7:4] p_level2[7:4] GPC
+Xlevel3_nc c[24:16:8] g_level2[7:5:2] p_level2[7:5:2] g_level2[6:4:2] p_level2[6:4:2] c[28:20:8] c[24:16:8] g_level3[3:2] p_level3[3:2] GPC
+*c16 here is assumed to be zero
+Xlevel4_nc 0 g_level3[3] p_level3[3] g_level3[2] p_level3[2] c24 c16 g_output p_output GPC
+.ends
+
+.subckt high_adder16_c a[31:16] b[31:16] s_invoke[31:16]
+* the higher 16 bits for the case of carry out of the 16th bit (of the lower adder)
+
+Xlevel0_c a[31:16] b[31:16] c[31:16] s_invoke[31:16] g[31:16] p[31:16] FA
+Xlevel1_c c[30:16:2] g[31:17:2] p[31:17:2] g[30:16:2] p[30:16:2] c[31:17:2] c[30:16:2] g_level1[15:8] p_level1[15:8] GPC
+Xlevel2_c c[28:16:4] g_level1[15:9:2] p_level1[15:9:2] g_level1[14:8:2] p_level1[14:8:2] c[30:18:4] c[28:16:4] g_level2[7:4] p_level2[7:4] GPC
+Xlevel3_c c[24:16:8] g_level2[7:5:2] p_level2[7:5:2] g_level2[6:4:2] p_level2[6:4:2] c[28:20:8] c[24:16:8] g_level3[3:2] p_level3[3:2] GPC
+*c16 here is assumed to be 1
+Xlevel4_c vdd g_level3[3] p_level3[3] g_level3[2] p_level3[2] c24 c16 g_output p_output GPC
+.ends
+
+.subckt adder32 op0 a[31:0] xb[31:0] s_output[31:0] z v n
+* The whole 32-bit adder including all the smaller sub components
+Xbuffop op0 buff_op0 buffer_8
+.connect buff_op0 c0
+.connect c_16 c16
+XinvertB xb[31:0] inv_b[31:0] inverter
+XmuxB buff_op0#32 xb[31:0] inv_b[31:0] b[31:0] mux2
+Xlower16_adders op0 a[15:0] b[15:0] s_output[15:0] c_16 low_adder16
+Xhighadd_butwithcarrydoe a[31:16] b[31:16] s_nocarry[31:16] high_adder16_c
+Xhighadd_nocarry a[31:16] b[31:16] s_carry[31:16] high_adder16_noc
+Xbuffc16 c_16 buffc_16 buffer_8
+Xcombine_adders buffc_16#16 s_carry[31:16] s_nocarry[31:16] s_output[31:16] mux2
+.connect s_output[31] n
+Xzero s_output[31:0] z bigZero
+Xoverflow a[31] b[31] s_output[31] v bigV
+.ends
