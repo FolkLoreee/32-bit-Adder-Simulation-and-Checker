@@ -1,4 +1,4 @@
-#Circuit Simulation and SAT Solver 
+# Circuit Simulation and SAT Solver 
 
 ## 32-bit Full Adder Circuit Simulation
 A simple circuit simulation done in jsim (proprietary language by MIT), which is a part of the 50.002 Computation Structures course.
